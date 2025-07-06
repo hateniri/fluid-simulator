@@ -3,33 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fluid Simulator</title>
+    <title>Modern Fluid Simulator</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            font-family: Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: #000;
         }
-        #canvas {
+        #root {
             width: 100vw;
             height: 100vh;
-            display: block;
         }
-        #info {
-            position: absolute;
-            top: 10px;
-            left: 10px;
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             color: white;
-            background: rgba(0,0,0,0.7);
-            padding: 10px;
-            border-radius: 5px;
+            font-size: 1.2rem;
         }
     </style>
 </head>
 <body>
-    <div id="info">
-        Click and drag to interact with the fluid
+    <div id="root">
+        <div class="loading">Loading fluid simulator...</div>
     </div>
-    <script type="module" src="/src/main.ts"></script>
+    <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 {
-  "name": "fluid-simulator",
-  "version": "1.0.0",
-  "description": "WebGL fluid simulation using Three.js",
+  "name": "modern-fluid-simulator",
+  "version": "2.0.0",
+  "description": "Modern WebGL2 fluid simulation",
   "main": "index.js",
   "scripts": {
     "dev": "vite",
@@ -10,10 +10,19 @@
   },
   "devDependencies": {
     "@types/three": "^0.160.0",
+    "@types/react": "^18.2.47",
+    "@types/react-dom": "^18.2.18",
+    "@vitejs/plugin-react": "^4.2.1",
     "typescript": "^5.3.3",
     "vite": "^5.0.11"
   },
   "dependencies": {
-    "three": "^0.160.0"
+    "three": "^0.160.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@react-three/fiber": "^8.15.14",
+    "@react-three/drei": "^9.96.1",
+    "leva": "^0.9.35",
+    "zustand": "^4.4.7"
   }
 }
