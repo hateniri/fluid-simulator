@@ -2,23 +2,23 @@ import * as THREE from 'three';
 import { 
     advectionVertexShader, 
     advectionFragmentShader 
-} from './shaders/advectionShader.glsl';
+} from './shaders/advectionShader';
 import { 
     divergenceVertexShader, 
     divergenceFragmentShader 
-} from './shaders/divergenceShader.glsl';
+} from './shaders/divergenceShader';
 import { 
     pressureVertexShader, 
     pressureFragmentShader 
-} from './shaders/pressureShader.glsl';
+} from './shaders/pressureShader';
 import { 
     gradientSubtractVertexShader, 
     gradientSubtractFragmentShader 
-} from './shaders/gradientSubtractShader.glsl';
+} from './shaders/gradientSubtractShader';
 import { 
     splatVertexShader, 
     splatFragmentShader 
-} from './shaders/splatShader.glsl';
+} from './shaders/splatShader';
 
 export class FluidSimulation {
     private renderer: THREE.WebGLRenderer;
