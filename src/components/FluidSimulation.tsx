@@ -1,119 +1,51 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useFluidStore } from '../store/fluidStore';
-import { FluidEngine } from '../engine/FluidEngine';
 
+// Simple test version first
 export function FluidSimulation() {
   const meshRef = useRef<THREE.Mesh>(null);
   const { gl, size } = useThree();
-  const engineRef = useRef<FluidEngine>();
   
-  const mousePosition = useFluidStore((state) => state.mousePosition);
-  const mouseVelocity = useFluidStore((state) => state.mouseVelocity);
-  const isMouseDown = useFluidStore((state) => state.isMouseDown);
-  const brushSize = useFluidStore((state) => state.brushSize);
-  const config = useFluidStore((state) => state.config);
-  const setCallbacks = useFluidStore((state) => state.setCallbacks);
-  
-  // Initialize fluid engine
+  // Create a simple gradient texture for testing
   useEffect(() => {
-    const engine = new FluidEngine(gl, 512, 512);
-    engineRef.current = engine;
-    
-    // Set callbacks
-    setCallbacks({
-      onReset: () => engine.reset(),
-      onRandomSplats: (count) => engine.addRandomSplats(count),
-    });
-    
-    // Add initial splats
-    engine.addRandomSplats(5);
-    
-    return () => {
-      engine.dispose();
-    };
-  }, [gl, setCallbacks]);
+    console.log('FluidSimulation mounted');
+    console.log('WebGL context:', gl);
+    console.log('Canvas size:', size);
+  }, [gl, size]);
   
-  // Update configuration
-  useEffect(() => {
-    if (engineRef.current) {
-      engineRef.current.updateConfig(config);
-    }
-  }, [config]);
-  
-  // Handle mouse events
-  useEffect(() => {
-    const handleMouseMove = (event: MouseEvent) => {
-      const x = event.clientX / window.innerWidth;
-      const y = 1.0 - event.clientY / window.innerHeight;
-      useFluidStore.getState().updateMousePosition(x, y);
-    };
+  // Create test texture
+  const texture = React.useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d')!;
     
-    const handleMouseDown = (event: MouseEvent) => {
-      if (event.button === 0) {
-        useFluidStore.getState().setMouseDown(true);
-      }
-    };
+    // Create gradient
+    const gradient = ctx.createLinearGradient(0, 0, 256, 256);
+    gradient.addColorStop(0, '#ff0000');
+    gradient.addColorStop(0.5, '#00ff00');
+    gradient.addColorStop(1, '#0000ff');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 256, 256);
     
-    const handleMouseUp = () => {
-      useFluidStore.getState().setMouseDown(false);
-    };
-    
-    const handleWheel = (event: WheelEvent) => {
-      event.preventDefault();
-      const delta = event.deltaY > 0 ? 0.95 : 1.05;
-      const currentSize = useFluidStore.getState().brushSize;
-      useFluidStore.getState().setBrushSize(currentSize * delta);
-    };
-    
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('mouseup', handleMouseUp);
-    window.addEventListener('wheel', handleWheel, { passive: false });
-    
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('mouseup', handleMouseUp);
-      window.removeEventListener('wheel', handleWheel);
-    };
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    return tex;
   }, []);
   
-  // Update simulation
+  // Animate rotation for visibility
   useFrame((state, delta) => {
-    if (!engineRef.current) return;
-    
-    // Add splat on mouse interaction
-    if (isMouseDown && mouseVelocity.length() > 0.001) {
-      const color = new THREE.Color();
-      color.setHSL(state.clock.elapsedTime * 0.1 % 1, 1, 0.5);
-      
-      engineRef.current.addSplat(
-        mousePosition.x,
-        mousePosition.y,
-        mouseVelocity.x * 50,
-        mouseVelocity.y * 50,
-        color,
-        brushSize
-      );
-    }
-    
-    // Update simulation
-    engineRef.current.update(Math.min(delta, 0.016));
-    
-    // Update mesh texture
     if (meshRef.current) {
-      const material = meshRef.current.material as THREE.MeshBasicMaterial;
-      material.map = engineRef.current.getDisplayTexture();
-      material.needsUpdate = true;
+      meshRef.current.rotation.z += delta * 0.5;
     }
   });
   
   return (
     <mesh ref={meshRef}>
       <planeGeometry args={[2, 2]} />
-      <meshBasicMaterial />
+      <meshBasicMaterial map={texture} />
     </mesh>
   );
 }
