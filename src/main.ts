@@ -1,12 +1,14 @@
 import * as THREE from 'three';
-import { FluidSimulation } from './FluidSimulation';
+// import { FluidSimulation } from './FluidSimulation';
+import { DebugFluidSimulation as FluidSimulation } from './DebugFluidSimulation';
+import { WEBGL } from './WebGLCheck';
 
 class App {
     private renderer: THREE.WebGLRenderer;
     private scene: THREE.Scene;
     private camera: THREE.PerspectiveCamera;
-    private fluidSimulation: FluidSimulation;
-    private plane: THREE.Mesh;
+    private fluidSimulation: FluidSimulation | null = null;
+    private plane: THREE.Mesh | null = null;
     
     private mouse: THREE.Vector2 = new THREE.Vector2();
     private lastMouse: THREE.Vector2 = new THREE.Vector2();
@@ -25,12 +27,31 @@ class App {
     ];
     
     constructor() {
-        this.init();
-        this.setupEventListeners();
-        this.animate();
+        try {
+            console.log('Initializing Fluid Simulator...');
+            this.init();
+            this.setupEventListeners();
+            this.animate();
+            console.log('Fluid Simulator initialized successfully');
+        } catch (error) {
+            console.error('Failed to initialize Fluid Simulator:', error);
+            this.showError('Failed to initialize: ' + error.message);
+        }
+    }
+    
+    private showError(message: string): void {
+        const info = document.getElementById('info');
+        if (info) {
+            info.innerHTML = `<span style="color: red;">Error: ${message}</span>`;
+        }
     }
     
     private init(): void {
+        // Check WebGL support
+        if (!WEBGL.isWebGLAvailable()) {
+            throw new Error('WebGL is not supported in your browser');
+        }
+        
         // Setup renderer
         this.renderer = new THREE.WebGLRenderer({ 
             antialias: true,
@@ -41,9 +62,22 @@ class App {
         this.renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(this.renderer.domElement);
         
+        // Check renderer capabilities
+        const gl = this.renderer.getContext();
+        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+        if (debugInfo) {
+            console.log('GPU:', gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL));
+        }
+        
+        // Check float texture support
+        const floatTextureSupport = gl.getExtension('OES_texture_float');
+        const halfFloatTextureSupport = gl.getExtension('OES_texture_half_float');
+        console.log('Float texture support:', !!floatTextureSupport);
+        console.log('Half float texture support:', !!halfFloatTextureSupport);
+        
         // Setup scene and camera
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x000000);
+        this.scene.background = new THREE.Color(0x111111); // Dark gray instead of black
         this.camera = new THREE.PerspectiveCamera(
             75,
             window.innerWidth / window.innerHeight,
@@ -52,19 +86,38 @@ class App {
         );
         this.camera.position.z = 1;
         
-        // Initialize fluid simulation
-        const simWidth = 512;
-        const simHeight = 512;
-        this.fluidSimulation = new FluidSimulation(this.renderer, simWidth, simHeight);
-        
-        // Create display plane with dynamic texture update
-        const geometry = new THREE.PlaneGeometry(2, 2);
-        const material = new THREE.MeshBasicMaterial({
-            map: this.fluidSimulation.getDensityTexture(),
-            transparent: false
-        });
-        this.plane = new THREE.Mesh(geometry, material);
-        this.scene.add(this.plane);
+        try {
+            // Initialize fluid simulation with smaller size for testing
+            const simWidth = 256;
+            const simHeight = 256;
+            console.log(`Creating fluid simulation: ${simWidth}x${simHeight}`);
+            this.fluidSimulation = new FluidSimulation(this.renderer, simWidth, simHeight);
+            
+            // Create a simple test plane first
+            const geometry = new THREE.PlaneGeometry(2, 2);
+            const material = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                side: THREE.DoubleSide
+            });
+            this.plane = new THREE.Mesh(geometry, material);
+            this.scene.add(this.plane);
+            
+            console.log('Test plane created');
+            
+            // Try to get density texture
+            const densityTexture = this.fluidSimulation.getDensityTexture();
+            if (densityTexture) {
+                console.log('Density texture obtained:', densityTexture);
+                material.map = densityTexture;
+                material.needsUpdate = true;
+            } else {
+                console.error('Failed to get density texture');
+            }
+            
+        } catch (error) {
+            console.error('Failed to create fluid simulation:', error);
+            throw error;
+        }
     }
     
     private setupEventListeners(): void {
@@ -97,7 +150,7 @@ class App {
     private onMouseMove(event: MouseEvent): void {
         this.updateMousePosition(event.clientX, event.clientY);
         
-        if (this.isMouseDown) {
+        if (this.isMouseDown && this.fluidSimulation) {
             this.addSplat();
         }
     }
@@ -105,7 +158,9 @@ class App {
     private onMouseDown(event: MouseEvent): void {
         this.isMouseDown = true;
         this.updateMousePosition(event.clientX, event.clientY);
-        this.addSplat();
+        if (this.fluidSimulation) {
+            this.addSplat();
+        }
     }
     
     private onMouseUp(): void {
@@ -116,7 +171,9 @@ class App {
         event.preventDefault();
         const touch = event.touches[0];
         this.updateMousePosition(touch.clientX, touch.clientY);
-        this.addSplat();
+        if (this.fluidSimulation) {
+            this.addSplat();
+        }
     }
     
     private onTouchStart(event: TouchEvent): void {
@@ -124,7 +181,9 @@ class App {
         this.isMouseDown = true;
         const touch = event.touches[0];
         this.updateMousePosition(touch.clientX, touch.clientY);
-        this.addSplat();
+        if (this.fluidSimulation) {
+            this.addSplat();
+        }
     }
     
     private onTouchEnd(): void {
@@ -132,6 +191,8 @@ class App {
     }
     
     private addSplat(): void {
+        if (!this.fluidSimulation) return;
+        
         const color = this.colors[this.colorIndex];
         this.colorIndex = (this.colorIndex + 1) % this.colors.length;
         
@@ -143,6 +204,8 @@ class App {
             this.mouseVelocity.y * velocityScale,
             color
         );
+        
+        console.log(`Added splat at (${this.mouse.x.toFixed(2)}, ${this.mouse.y.toFixed(2)}) with color`, color);
     }
     
     private animate(): void {
@@ -150,16 +213,21 @@ class App {
         
         const dt = Math.min(this.clock.getDelta(), 0.016);
         
-        // Update fluid simulation
-        this.fluidSimulation.update(dt);
-        
-        // Update plane texture
-        const material = this.plane.material as THREE.MeshBasicMaterial;
-        material.map = this.fluidSimulation.getDensityTexture();
-        material.needsUpdate = true;
-        
-        // Render fluid simulation first
-        this.fluidSimulation.render();
+        if (this.fluidSimulation && this.plane) {
+            // Update fluid simulation
+            this.fluidSimulation.update(dt);
+            
+            // Update plane texture
+            const material = this.plane.material as THREE.MeshBasicMaterial;
+            const texture = this.fluidSimulation.getDensityTexture();
+            if (texture && material.map !== texture) {
+                material.map = texture;
+                material.needsUpdate = true;
+            }
+            
+            // Render fluid simulation first
+            this.fluidSimulation.render();
+        }
         
         // Render scene
         this.renderer.setRenderTarget(null);
