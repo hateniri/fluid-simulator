@@ -90,9 +90,31 @@ export function FluidCanvas() {
       isMouseDown = false;
     };
     
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if (event.key === 'r' || event.key === 'R') {
+        console.log('Resetting fluid simulation');
+        engine.reset();
+        // Add some initial splats after reset
+        for (let i = 0; i < 3; i++) {
+          setTimeout(() => {
+            const color = new THREE.Color();
+            color.setHSL(Math.random(), 1, 0.5);
+            engine.addSplat(
+              Math.random() * 0.6 + 0.2,
+              Math.random() * 0.6 + 0.2,
+              (Math.random() - 0.5) * 20,
+              (Math.random() - 0.5) * 20,
+              color
+            );
+          }, i * 100);
+        }
+      }
+    };
+    
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('keypress', handleKeyPress);
     
     // Animation loop
     let lastTime = performance.now();
@@ -152,6 +174,7 @@ export function FluidCanvas() {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('keypress', handleKeyPress);
       engine.dispose();
       renderer.dispose();
     };

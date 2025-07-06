@@ -15,14 +15,19 @@ export class SimpleFluidEngine {
   private camera: THREE.OrthographicCamera;
   private resolution: THREE.Vector2;
   
-  private velocityRT: THREE.WebGLRenderTarget;
-  private densityRT: THREE.WebGLRenderTarget;
+  // Double buffering for ping-pong rendering
+  private densityBuffers: {
+    read: THREE.WebGLRenderTarget;
+    write: THREE.WebGLRenderTarget;
+  };
   private displayRT: THREE.WebGLRenderTarget;
   
   private quad: THREE.Mesh;
   private splats: Splat[] = [];
   
-  private shaders = {
+  private materials = {
+    copy: new THREE.MeshBasicMaterial(),
+    
     splat: new THREE.ShaderMaterial({
       vertexShader: `
         varying vec2 vUv;
@@ -107,16 +112,23 @@ export class SimpleFluidEngine {
     this.renderer = renderer;
     this.resolution = new THREE.Vector2(width, height);
     
-    // Setup render targets
-    const rtOptions = {
+    // Setup render targets with proper options
+    const rtOptions: THREE.WebGLRenderTargetOptions = {
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
       format: THREE.RGBAFormat,
-      type: THREE.FloatType
+      type: THREE.HalfFloatType,
+      depthBuffer: false,
+      stencilBuffer: false,
+      generateMipmaps: false
     };
     
-    this.velocityRT = new THREE.WebGLRenderTarget(width, height, rtOptions);
-    this.densityRT = new THREE.WebGLRenderTarget(width, height, rtOptions);
+    // Create double buffer for density
+    this.densityBuffers = {
+      read: new THREE.WebGLRenderTarget(width, height, rtOptions),
+      write: new THREE.WebGLRenderTarget(width, height, rtOptions)
+    };
+    
     this.displayRT = new THREE.WebGLRenderTarget(width, height, {
       ...rtOptions,
       type: THREE.UnsignedByteType
@@ -128,7 +140,7 @@ export class SimpleFluidEngine {
     
     // Create quad
     const geometry = new THREE.PlaneGeometry(2, 2);
-    this.quad = new THREE.Mesh(geometry, this.shaders.display);
+    this.quad = new THREE.Mesh(geometry, this.materials.display);
     this.scene.add(this.quad);
     
     // Clear render targets
@@ -136,13 +148,30 @@ export class SimpleFluidEngine {
   }
   
   private clear(): void {
-    this.renderer.setRenderTarget(this.velocityRT);
+    // Clear all render targets
+    const clearMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    this.quad.material = clearMaterial;
+    
+    this.renderer.setRenderTarget(this.densityBuffers.read);
     this.renderer.clear();
-    this.renderer.setRenderTarget(this.densityRT);
+    this.renderer.render(this.scene, this.camera);
+    
+    this.renderer.setRenderTarget(this.densityBuffers.write);
     this.renderer.clear();
+    this.renderer.render(this.scene, this.camera);
+    
     this.renderer.setRenderTarget(this.displayRT);
     this.renderer.clear();
+    this.renderer.render(this.scene, this.camera);
+    
     this.renderer.setRenderTarget(null);
+    clearMaterial.dispose();
+  }
+  
+  private swapBuffers(): void {
+    const temp = this.densityBuffers.read;
+    this.densityBuffers.read = this.densityBuffers.write;
+    this.densityBuffers.write = temp;
   }
   
   public addSplat(x: number, y: number, dx: number, dy: number, color: THREE.Color): void {
@@ -150,42 +179,47 @@ export class SimpleFluidEngine {
   }
   
   public update(dt: number): void {
-    // Apply fade to density
-    this.quad.material = this.shaders.fade;
-    this.shaders.fade.uniforms.uTexture.value = this.densityRT.texture;
-    this.shaders.fade.uniforms.uFade.value = 0.985;
+    // Apply fade effect
+    this.quad.material = this.materials.fade;
+    this.materials.fade.uniforms.uTexture.value = this.densityBuffers.read.texture;
+    this.materials.fade.uniforms.uFade.value = 0.985;
     
-    const tempRT = this.velocityRT; // Use as temp buffer
-    this.renderer.setRenderTarget(tempRT);
+    this.renderer.setRenderTarget(this.densityBuffers.write);
     this.renderer.render(this.scene, this.camera);
-    
-    // Copy back to density
-    this.renderer.setRenderTarget(this.densityRT);
-    this.quad.material = new THREE.MeshBasicMaterial({ map: tempRT.texture });
-    this.renderer.render(this.scene, this.camera);
+    this.swapBuffers();
     
     // Apply splats
-    this.quad.material = this.shaders.splat;
-    while (this.splats.length > 0) {
-      const splat = this.splats.pop()!;
+    if (this.splats.length > 0) {
+      this.quad.material = this.materials.splat;
       
-      this.shaders.splat.uniforms.uTarget.value = this.densityRT.texture;
-      this.shaders.splat.uniforms.uPoint.value.set(splat.x, splat.y);
-      this.shaders.splat.uniforms.uColor.value.set(splat.color.r, splat.color.g, splat.color.b);
-      this.shaders.splat.uniforms.uRadius.value = splat.radius;
+      // Process up to 5 splats per frame to avoid performance issues
+      const splatCount = Math.min(this.splats.length, 5);
       
-      this.renderer.setRenderTarget(tempRT);
-      this.renderer.render(this.scene, this.camera);
-      
-      // Swap buffers
-      const temp = this.densityRT;
-      this.densityRT = tempRT;
-      this.velocityRT = temp;
+      for (let i = 0; i < splatCount; i++) {
+        const splat = this.splats.shift()!;
+        
+        // Set uniforms
+        this.materials.splat.uniforms.uTarget.value = this.densityBuffers.read.texture;
+        this.materials.splat.uniforms.uPoint.value.set(splat.x, splat.y);
+        this.materials.splat.uniforms.uColor.value.set(
+          splat.color.r, 
+          splat.color.g, 
+          splat.color.b
+        );
+        this.materials.splat.uniforms.uRadius.value = splat.radius;
+        
+        // Render to write buffer
+        this.renderer.setRenderTarget(this.densityBuffers.write);
+        this.renderer.render(this.scene, this.camera);
+        
+        // Swap buffers for next iteration
+        this.swapBuffers();
+      }
     }
     
-    // Update display
-    this.quad.material = this.shaders.display;
-    this.shaders.display.uniforms.uDensity.value = this.densityRT.texture;
+    // Update display texture
+    this.quad.material = this.materials.display;
+    this.materials.display.uniforms.uDensity.value = this.densityBuffers.read.texture;
     this.renderer.setRenderTarget(this.displayRT);
     this.renderer.render(this.scene, this.camera);
     
@@ -197,11 +231,16 @@ export class SimpleFluidEngine {
     return this.displayRT.texture;
   }
   
+  public reset(): void {
+    this.clear();
+    this.splats = [];
+  }
+  
   public dispose(): void {
-    this.velocityRT.dispose();
-    this.densityRT.dispose();
+    this.densityBuffers.read.dispose();
+    this.densityBuffers.write.dispose();
     this.displayRT.dispose();
     this.quad.geometry.dispose();
-    Object.values(this.shaders).forEach(shader => shader.dispose());
+    Object.values(this.materials).forEach(material => material.dispose());
   }
 }
