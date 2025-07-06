@@ -53,6 +53,9 @@ export class FluidSimulation {
         this.initRenderTargets();
         this.initMaterials();
         this.initQuad();
+        
+        // Add initial splat for visibility
+        this.addSplat(0.5, 0.5, 0, 0, new THREE.Vector3(0.5, 0.5, 0.5));
     }
     
     private initRenderTargets(): void {
@@ -60,7 +63,7 @@ export class FluidSimulation {
             minFilter: THREE.LinearFilter,
             magFilter: THREE.LinearFilter,
             format: THREE.RGBAFormat,
-            type: THREE.FloatType
+            type: THREE.HalfFloatType
         };
         
         this.velocityRenderTargets = [

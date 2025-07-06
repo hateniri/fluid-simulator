@@ -6,6 +6,7 @@ class App {
     private scene: THREE.Scene;
     private camera: THREE.PerspectiveCamera;
     private fluidSimulation: FluidSimulation;
+    private plane: THREE.Mesh;
     
     private mouse: THREE.Vector2 = new THREE.Vector2();
     private lastMouse: THREE.Vector2 = new THREE.Vector2();
@@ -31,13 +32,18 @@ class App {
     
     private init(): void {
         // Setup renderer
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer = new THREE.WebGLRenderer({ 
+            antialias: true,
+            alpha: false,
+            powerPreference: 'high-performance'
+        });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(this.renderer.domElement);
         
         // Setup scene and camera
         this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x000000);
         this.camera = new THREE.PerspectiveCamera(
             75,
             window.innerWidth / window.innerHeight,
@@ -51,13 +57,14 @@ class App {
         const simHeight = 512;
         this.fluidSimulation = new FluidSimulation(this.renderer, simWidth, simHeight);
         
-        // Create display plane
+        // Create display plane with dynamic texture update
         const geometry = new THREE.PlaneGeometry(2, 2);
         const material = new THREE.MeshBasicMaterial({
-            map: this.fluidSimulation.getDensityTexture()
+            map: this.fluidSimulation.getDensityTexture(),
+            transparent: false
         });
-        const plane = new THREE.Mesh(geometry, material);
-        this.scene.add(plane);
+        this.plane = new THREE.Mesh(geometry, material);
+        this.scene.add(this.plane);
     }
     
     private setupEventListeners(): void {
@@ -145,6 +152,14 @@ class App {
         
         // Update fluid simulation
         this.fluidSimulation.update(dt);
+        
+        // Update plane texture
+        const material = this.plane.material as THREE.MeshBasicMaterial;
+        material.map = this.fluidSimulation.getDensityTexture();
+        material.needsUpdate = true;
+        
+        // Render fluid simulation first
+        this.fluidSimulation.render();
         
         // Render scene
         this.renderer.setRenderTarget(null);
