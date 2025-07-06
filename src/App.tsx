@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { FluidCanvas } from './components/FluidCanvas';
 import { OceanCanvas } from './components/OceanCanvas';
+import { SmokeCanvas } from './components/SmokeCanvas';
 
 export function App() {
-  const [mode, setMode] = useState<'fluid' | 'ocean'>('ocean');
+  const [mode, setMode] = useState<'fluid' | 'ocean' | 'smoke'>('smoke');
   
   return (
     <>
-      {mode === 'fluid' ? <FluidCanvas /> : <OceanCanvas />}
+      {mode === 'fluid' && <FluidCanvas />}
+      {mode === 'ocean' && <OceanCanvas />}
+      {mode === 'smoke' && <SmokeCanvas />}
       
       <div style={{
         position: 'absolute',
@@ -43,6 +46,20 @@ export function App() {
           }}
         >
           Ocean Mode
+        </button>
+        <button
+          onClick={() => setMode('smoke')}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: mode === 'smoke' ? '#007bff' : '#333',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer',
+            fontSize: '14px'
+          }}
+        >
+          Smoke Mode
         </button>
       </div>
     </>
